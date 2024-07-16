@@ -2,7 +2,7 @@ import { OrbitControls, shaderMaterial } from "@react-three/drei";
 import vertexShader from './shaders/particles/vertex.glsl';
 import fragmentShader from './shaders/particles/fragment.glsl';
 import * as THREE from 'three';
-import { extend, useFrame, useThree } from "@react-three/fiber";
+import { extend, useFrame } from "@react-three/fiber";
 import { useEffect, useRef } from 'react';
 import useCanvas from "./hooks/useCanvas";
 import useInteractivePlane from "./hooks/useInteractivePlane";
@@ -27,6 +27,7 @@ const ParticlesMaterial = shaderMaterial(
     {
         uResolution: new THREE.Vector2(sizes.width * sizes.pixelRatio, sizes.height * sizes.pixelRatio),
         uPictureTexture: textureLoader.load('./picture-1.png'),
+        uDisplacementTexture: new THREE.CanvasTexture()
     },
     vertexShader,
     fragmentShader
@@ -36,16 +37,43 @@ extend({ ParticlesMaterial });
 
 export default function Experience() {
     const particlesMaterial = useRef();
+    const particlesGeometry = useRef();
+    const intensitiesArray = useRef(new Float32Array());
+    const anglesArray = useRef(new Float32Array());
+
     const { interactivePlane, raycaster, screenCursor } = useInteractivePlane()
     const canvas = useCanvas()
 
     useFrame((state) => {
-        raycaster.current.setFromCamera(screenCursor, state.camera)
+        raycaster.current.setFromCamera(screenCursor.current, state.camera)
         const intersections = raycaster.current.intersectObject(interactivePlane.current);
         if (intersections.length) {
-            console.log(intersections[0])
+            const { uv } = intersections[0]
+            canvas.cursor.current.x = uv.x * canvas.getDimensions().width;
+            canvas.cursor.current.y = (1 - uv.y) * canvas.getDimensions().width;
         }
+
+        canvas.drawImage()
+        canvas.texture.current.needsUpdate = true;
     });
+
+    useEffect(() => {        
+        if (!particlesGeometry.current) return
+        const { count: particlesCount } = particlesGeometry.current.attributes.position
+
+        particlesGeometry.current.setIndex(null);
+        intensitiesArray.current = new Float32Array(particlesCount)
+        anglesArray.current = new Float32Array(particlesCount)
+   
+        for (let i = 0; i < particlesCount; i++) {
+            intensitiesArray.current[i] = Math.random();
+            anglesArray.current[i] = Math.random() * Math.PI * 2;
+        }
+
+        particlesGeometry.current.setAttribute('aIntensity', new THREE.BufferAttribute(intensitiesArray.current, 1))
+        particlesGeometry.current.setAttribute('aAngle', new THREE.BufferAttribute(intensitiesArray.current, 1))
+
+    }, [particlesGeometry.current])
 
     useEffect(() => {
         if (!canvas.ref) return;
@@ -67,7 +95,12 @@ export default function Experience() {
 
         canvas.loadImage('glow.png')
 
+        canvas.createTexture() 
         document.body.append(canvas.ref.current);
+
+        if (particlesMaterial.current) {
+            particlesMaterial.current.uniforms.uDisplacementTexture.value = canvas.texture.current;
+        }
       }, [canvas.ref.current]);
     
     useEffect(() => {
@@ -93,10 +126,10 @@ export default function Experience() {
             <OrbitControls makeDefault />
             <mesh ref={interactivePlane}>
                 <planeGeometry args={[10, 10]} />
-                <meshBasicMaterial color={'red'} />
+                <meshBasicMaterial color={'red'} side={THREE.DoubleSide} />
             </mesh>
             <points>
-                <planeGeometry args={[10, 10, 128, 128]} />
+                <planeGeometry ref={particlesGeometry} args={[10, 10, 128, 128]} />
                 <particlesMaterial ref={particlesMaterial} />
             </points>
         </>

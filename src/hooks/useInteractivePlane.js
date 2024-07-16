@@ -8,10 +8,11 @@ const useInteractivePlane = () => {
   
   useEffect(() => {
     const handlePointerMove = (event) => {
-        screenCursor.x = (event.clientX / window.innerWidth) * 2 - 1;
-        screenCursor.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        screenCursor.current.x = (event.clientX / window.innerWidth) * 2 - 1;
+        screenCursor.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
     }
     window.addEventListener('pointermove', handlePointerMove)
+    interactivePlane.current.visible = false
     return () => window.removeEventListener('pointermove', handlePointerMove)
   }, [])
 
